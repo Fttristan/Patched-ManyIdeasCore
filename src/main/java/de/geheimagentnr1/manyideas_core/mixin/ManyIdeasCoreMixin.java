@@ -21,20 +21,15 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(value = ManyIdeasCore.class, remap = false)
 public abstract class ManyIdeasCoreMixin extends AbstractMod {
 
-    /**
-     * @author GeheimagentNr1 (Fixed by Patch)
-     * @reason Fixes side-loading crash on Dedicated Servers
-     */
     @Overwrite(remap = false)
     @Override
     protected void initMod() {
-        // These methods are now "visible" because we extend AbstractMod
+        // Now calling methods inherited from our dummy AbstractMod
         ModBlocksRegisterFactory modBlocksRegisterFactory = registerEventHandler(new ModBlocksRegisterFactory());
         registerEventHandler(new ModArgumentTypesRegisterFactory());
         registerEventHandler(new ModCommandsRegisterFactory());
         ModItemsRegisterFactory modItemsRegisterFactory = registerEventHandler(new ModItemsRegisterFactory());
 
-        // Use 'this' as the mod instance
         ManyIdeasCore instance = (ManyIdeasCore) (Object) this;
 
         registerEventHandler(new ModIngredientSerializersRegisterFactory(instance));
@@ -42,7 +37,6 @@ public abstract class ManyIdeasCoreMixin extends AbstractMod {
         registerEventHandler(new ModRecipeTypesRegisterFactory());
         registerEventHandler(Network.getInstance());
 
-        // Isolated Client Logic
         DistExecutor.unsafeRunForDist(
             () -> () -> {
                 ClientConfig clientConfig = registerConfig(ClientConfig::new);
@@ -63,7 +57,7 @@ public abstract class ManyIdeasCoreMixin extends AbstractMod {
                 modEventBus().addListener(playerDecorationManager::handleFMLClientSetupEvent);
             },
             () -> () -> {
-                // Server Side: Do nothing
+                // Server Side: Safe
             }
         );
     }

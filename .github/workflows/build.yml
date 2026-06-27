@@ -1,0 +1,62 @@
+name: Build and Publish Patch
+
+on:
+  push:
+    branches: [ "**" ] # Build on all branches
+    tags: [ "v*" ]    # Publish on tags (e.g., v1.0.0)
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create GitHub Releases
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        # This will run reobfJar and produce the final mod
+        run: ./gradlew build --no-daemon
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manyideas-core-patch-jar
+          path: build/libs/*.jar
+
+      # --- MC PUBLISH (Only runs when you push a tag like v1.0.0) ---
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          # GitHub Token is provided automatically
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # This glob finds the main mod jar and ignores sources/dev jars
+          files: |
+            build/libs/!(*-@(dev|sources|javadoc)).jar
+          
+          # Metadata for the release
+          name: Many Ideas Core Server Patch ${{ github.ref_name }}
+          version: ${{ github.ref_name }}
+          loaders: forge
+          game-versions: 1.20.1
+          
+          # Optional: Add these secrets in Repo Settings if you want to upload to Modrinth/CurseForge
+          # modrinth-id: ${{ secrets.MODRINTH_ID }}
+          # modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          # curseforge-id: ${{ secrets.CURSEFORGE_ID }}
+          # curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}

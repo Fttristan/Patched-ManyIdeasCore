@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="manyideas_core_patch"
+version="1.0.0"
+displayName="Many Ideas Core Server Patch"
+description="Fixes the Dedicated Server crash in Many Ideas Core 1.4.2"
+
+[[dependencies.manyideas_core_patch]]
+    modId="manyideas_core"
+    mandatory=true
+    versionRange="[1.4.2]"
+    ordering="AFTER"
+    side="BOTH"

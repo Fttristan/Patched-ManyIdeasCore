@@ -1,0 +1,16 @@
+Java Launcher: /home/codespace/.gradle/jdks/eclipse_adoptium-17-amd64-linux/jdk-17.0.19+10/bin/java
+Arguments: '--task, SRG_TO_MCP, --input, /workspaces/Patched-ManyIdeasCore/libs/ManyIdeasCore-1.20.1-1.4.2.jar, --output, /home/codespace/.gradle/caches/forge_gradle/deobf_dependencies/blank/ManyIdeasCore-1.20.1/1.4.2_mapped_official_1.20.1/ManyIdeasCore-1.20.1-1.4.2_mapped_official_1.20.1.jar, --mcp, /home/codespace/.gradle/caches/forge_gradle/mcp_repo/net/minecraft/mapping/1.20.1/mapping-1.20.1-mapping.zip, --strip-signatures'
+Classpath:
+ - /home/codespace/.gradle/caches/forge_gradle/maven_downloader/net/minecraftforge/installertools/1.4.4/installertools-1.4.4-fatjar.jar
+Working directory: /workspaces/Patched-ManyIdeasCore/build/_RenameSrg2Mcp_1915940678
+Main class: net.minecraftforge.installertools.ConsoleTool
+====================================
+Task: SRG_TO_MCP
+Input:  /workspaces/Patched-ManyIdeasCore/libs/ManyIdeasCore-1.20.1-1.4.2.jar
+Output: /home/codespace/.gradle/caches/forge_gradle/deobf_dependencies/blank/ManyIdeasCore-1.20.1/1.4.2_mapped_official_1.20.1/ManyIdeasCore-1.20.1-1.4.2_mapped_official_1.20.1.jar
+MCP:    /home/codespace/.gradle/caches/forge_gradle/mcp_repo/net/minecraft/mapping/1.20.1/mapping-1.20.1-mapping.zip
+Loading MCP Data
+Processing ZIP file
+Stripped Manifest of sha digests
+Stripped Manifest of sha digests
+Process complete

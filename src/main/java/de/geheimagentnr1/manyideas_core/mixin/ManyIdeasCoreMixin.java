@@ -1,7 +1,6 @@
 package de.geheimagentnr1.manyideas_core.mixin;
 
 import de.geheimagentnr1.manyideas_core.ManyIdeasCore;
-import de.geheimagentnr1.manyideas_core.config.ClientConfig;
 import de.geheimagentnr1.manyideas_core.elements.blocks.ModBlocksRegisterFactory;
 import de.geheimagentnr1.manyideas_core.elements.blocks.ModDebugBlocksRegisterFactory;
 import de.geheimagentnr1.manyideas_core.elements.commands.ModArgumentTypesRegisterFactory;
@@ -13,81 +12,86 @@ import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeSerializersReg
 import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeTypesRegisterFactory;
 import de.geheimagentnr1.manyideas_core.network.Network;
 import de.geheimagentnr1.manyideas_core.special.decoration_renderer.PlayerDecorationManager;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.DistExecutor;
+import de.geheimagentnr1.manyideas_core.config.ClientConfig;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 
-import java.lang.reflect.Method;
 import java.util.function.Function;
 
 @Mixin(value = ManyIdeasCore.class, remap = false)
 public abstract class ManyIdeasCoreMixin {
 
+    @Shadow(remap = false) 
+    public abstract Object registerEventHandler(Object handler);
+
+    @Shadow(remap = false) 
+    public abstract Object registerConfig(Function<?, ?> configFactory);
+
+    @Shadow(remap = false) 
+    public abstract Object forgeEventBus();
+
+    @Shadow(remap = false) 
+    public abstract Object modEventBus();
+
     /**
-     * This @Inject at HEAD runs BEFORE the original code. 
-     * We run our fixed logic and then call ci.cancel() to prevent the 
-     * original, crashing code from ever running.
+     * @author GeheimagentNr1 (Fixed by FTTristan)
+     * @reason Completely replace initMod with a side-aware version to prevent server crashes.
      */
-    @Inject(method = "initMod", at = @At("HEAD"), cancellable = true, remap = false)
-    private void onInitMod(CallbackInfo ci) {
+    @Overwrite(remap = false)
+    protected void initMod() {
         ManyIdeasCore instance = (ManyIdeasCore) (Object) this;
 
-        try {
-            // Use Reflection to find the API methods in the parent class
-            Method regEvt = _findMethod(instance.getClass(), "registerEventHandler", Object.class);
-            Method regCfg = _findMethod(instance.getClass(), "registerConfig", Function.class);
-            Method fBus = _findMethod(instance.getClass(), "forgeEventBus");
-            Method mBus = _findMethod(instance.getClass(), "modEventBus");
+        // --- COMMON INITIALIZATION (Safe for both Server and Client) ---
+        
+        // 1. Register basic factories
+        ModBlocksRegisterFactory blocksFactory = (ModBlocksRegisterFactory) registerEventHandler(new ModBlocksRegisterFactory());
+        registerEventHandler(new ModArgumentTypesRegisterFactory());
+        registerEventHandler(new ModCommandsRegisterFactory());
+        ModItemsRegisterFactory itemsFactory = (ModItemsRegisterFactory) registerEventHandler(new ModItemsRegisterFactory());
 
-            // 1. Common Side logic (Safe for both)
-            ModBlocksRegisterFactory blocks = (ModBlocksRegisterFactory) regEvt.invoke(instance, new ModBlocksRegisterFactory());
-            regEvt.invoke(instance, new ModArgumentTypesRegisterFactory());
-            regEvt.invoke(instance, new ModCommandsRegisterFactory());
-            ModItemsRegisterFactory items = (ModItemsRegisterFactory) regEvt.invoke(instance, new ModItemsRegisterFactory());
+        // 2. Register Recipes & Ingredients
+        registerEventHandler(new ModIngredientSerializersRegisterFactory(instance));
+        registerEventHandler(new ModRecipeSerializersRegisterFactory());
+        registerEventHandler(new ModRecipeTypesRegisterFactory());
 
-            regEvt.invoke(instance, new ModIngredientSerializersRegisterFactory(instance));
-            regEvt.invoke(instance, new ModRecipeSerializersRegisterFactory());
-            regEvt.invoke(instance, new ModRecipeTypesRegisterFactory());
-            regEvt.invoke(instance, Network.getInstance());
+        // 3. Register Network
+        registerEventHandler(Network.getInstance());
 
-            // 2. Safe Side Isolation
-            if (FMLEnvironment.dist.isClient()) {
-                // We only run this if we are a physical client
-                ClientConfig config = (ClientConfig) regCfg.invoke(instance, (Function<ManyIdeasCore, ClientConfig>) ClientConfig::new);
-                ModDebugBlocksRegisterFactory debug = (ModDebugBlocksRegisterFactory) regEvt.invoke(instance, new ModDebugBlocksRegisterFactory(config));
+        // --- SIDE SPECIFIC INITIALIZATION ---
 
-                regEvt.invoke(instance, new ModCreativeModeTabRegisterFactory(config, blocks, debug, items));
-
-                PlayerDecorationManager decos = new PlayerDecorationManager();
-                ((IEventBus) fBus.invoke(instance)).addListener(decos::handlePreRenderPlayerEvent);
-                ((IEventBus) mBus.invoke(instance)).addListener(decos::handleFMLClientSetupEvent);
-            }
-
-            // SUCCESS: Cancel the original method so the crashing code never runs
-            ci.cancel();
-
-        } catch (Exception e) {
-            System.err.println("[ManyIdeasCore-Patch] CRITICAL ERROR: Failed to apply server fix via reflection!");
-            e.printStackTrace();
-            // If reflection fails, we don't cancel, so the original code runs (and crashes)
+        if (FMLEnvironment.dist.isClient()) {
+            // This code ONLY executes on the Physical Client.
+            // We use a helper method to instantiate client classes so the 
+            // Server's classloader never even "looks" at them.
+            ClientInitializer.run(instance, this, blocksFactory, itemsFactory);
+        } else {
+            System.out.println("[ManyIdeas-Patch] Running on Dedicated Server. Skipping Client-only registrations.");
         }
     }
 
-    private Method _findMethod(Class<?> clazz, String name, Class<?>... params) throws NoSuchMethodException {
-        Class<?> current = clazz;
-        while (current != null) {
-            try {
-                Method m = current.getDeclaredMethod(name, params);
-                m.setAccessible(true);
-                return m;
-            } catch (NoSuchMethodException e) {
-                current = current.getSuperclass();
-            }
+    /**
+     * Internal class to isolate client-only class references.
+     * This prevents the "Attempted to load class ... for invalid dist" crash.
+     */
+    private static class ClientInitializer {
+        private static void run(ManyIdeasCore instance, ManyIdeasCoreMixin mixin, ModBlocksRegisterFactory b, ModItemsRegisterFactory i) {
+            // Load Config
+            ClientConfig config = (ClientConfig) mixin.registerConfig(ClientConfig::new);
+
+            // Register Debug Blocks
+            ModDebugBlocksRegisterFactory debug = (ModDebugBlocksRegisterFactory) mixin.registerEventHandler(
+                new ModDebugBlocksRegisterFactory(config)
+            );
+
+            // Register Creative Tabs
+            mixin.registerEventHandler(new ModCreativeModeTabRegisterFactory(config, b, debug, i));
+
+            // Setup Decoration Manager
+            PlayerDecorationManager deco = new PlayerDecorationManager();
+            ((net.minecraftforge.eventbus.api.IEventBus) mixin.forgeEventBus()).addListener(deco::handlePreRenderPlayerEvent);
+            ((net.minecraftforge.eventbus.api.IEventBus) mixin.modEventBus()).addListener(deco::handleFMLClientSetupEvent);
         }
-        throw new NoSuchMethodException(name);
     }
 }

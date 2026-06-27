@@ -32,17 +32,15 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.2.23'
-
-    // The original mod JAR in /libs
     implementation fg.deobf("blank:ManyIdeasCore-1.20.1:1.4.2")
-
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 tasks.named('jar', Jar).configure {
-    // THIS IS THE MOST IMPORTANT LINE:
-    // It prevents the "ResolutionException" (Split Package) error
-    // by ensuring the dummy API classes are NOT inside your final mod.
+    // Explicitly include compiled classes and resources
+    from sourceSets.main.output
+
+    // Prevent the "ResolutionException" by excluding dummy API classes
     exclude 'de/geheimagentnr1/minecraft_forge_api/**'
 
     manifest {

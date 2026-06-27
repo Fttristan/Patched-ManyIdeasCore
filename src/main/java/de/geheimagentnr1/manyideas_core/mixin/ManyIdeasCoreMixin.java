@@ -13,44 +13,28 @@ import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeSerializersReg
 import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeTypesRegisterFactory;
 import de.geheimagentnr1.manyideas_core.network.Network;
 import de.geheimagentnr1.manyideas_core.special.decoration_renderer.PlayerDecorationManager;
-import net.minecraftforge.eventbus.api.IEventBus;
+import de.geheimagentnr1.minecraft_forge_api.AbstractMod;
 import net.minecraftforge.fml.DistExecutor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
-
-import java.util.function.Function;
 
 @Mixin(value = ManyIdeasCore.class, remap = false)
-public abstract class ManyIdeasCoreMixin {
-
-    // Shadowing the methods from the private AbstractMod class so the Mixin can use them.
-    // remap = false is used because these belong to a custom API, not Mojang mappings.
-    @Shadow(remap = false) 
-    public abstract <T> T registerEventHandler(T handler);
-
-    @Shadow(remap = false) 
-    public abstract <T> T registerConfig(Function<ManyIdeasCore, T> configFactory);
-
-    @Shadow(remap = false) 
-    public abstract IEventBus forgeEventBus();
-
-    @Shadow(remap = false) 
-    public abstract IEventBus modEventBus();
+public abstract class ManyIdeasCoreMixin extends AbstractMod {
 
     /**
      * @author GeheimagentNr1 (Fixed by Patch)
-     * @reason Prevent Dedicated Server crash by isolating Client-side classes.
+     * @reason Fixes side-loading crash on Dedicated Servers
      */
     @Overwrite(remap = false)
+    @Override
     protected void initMod() {
-        // 1. Initialization required on BOTH sides (Server and Client)
+        // These methods are now "visible" because we extend AbstractMod
         ModBlocksRegisterFactory modBlocksRegisterFactory = registerEventHandler(new ModBlocksRegisterFactory());
         registerEventHandler(new ModArgumentTypesRegisterFactory());
         registerEventHandler(new ModCommandsRegisterFactory());
         ModItemsRegisterFactory modItemsRegisterFactory = registerEventHandler(new ModItemsRegisterFactory());
 
-        // Cast this to ManyIdeasCore for the register factory
+        // Use 'this' as the mod instance
         ManyIdeasCore instance = (ManyIdeasCore) (Object) this;
 
         registerEventHandler(new ModIngredientSerializersRegisterFactory(instance));
@@ -58,11 +42,9 @@ public abstract class ManyIdeasCoreMixin {
         registerEventHandler(new ModRecipeTypesRegisterFactory());
         registerEventHandler(Network.getInstance());
 
-        // 2. Fixed side isolation using DistExecutor
+        // Isolated Client Logic
         DistExecutor.unsafeRunForDist(
             () -> () -> {
-                // This block executes ONLY on Physical Client (Minecraft Client)
-                // Classes like ClientConfig and PlayerDecorationManager are safe to load here.
                 ClientConfig clientConfig = registerConfig(ClientConfig::new);
 
                 ModDebugBlocksRegisterFactory modDebugBlocksRegisterFactory = registerEventHandler(
@@ -81,8 +63,7 @@ public abstract class ManyIdeasCoreMixin {
                 modEventBus().addListener(playerDecorationManager::handleFMLClientSetupEvent);
             },
             () -> () -> {
-                // This block executes ONLY on Dedicated Server
-                // We do nothing here, skipping the client-only classes above.
+                // Server Side: Do nothing
             }
         );
     }

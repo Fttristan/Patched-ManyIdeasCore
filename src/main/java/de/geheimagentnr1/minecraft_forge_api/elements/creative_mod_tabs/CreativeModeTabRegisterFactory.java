@@ -1,0 +1,2 @@
+package de.geheimagentnr1.minecraft_forge_api.elements.creative_mod_tabs;
+public interface CreativeModeTabRegisterFactory {}

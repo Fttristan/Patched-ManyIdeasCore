@@ -48,7 +48,7 @@ tasks.named('jar', Jar).configure {
     manifest {
         attributes([
                 'Specification-Title'     : 'manyideas_core_patch',
-                'Specification-Vendor'    : 'patcher',
+                'Specification-Vendor'    : 'FTTristan',
                 'Specification-Version'   : '1',
                 'Implementation-Title'    : project.name,
                 'Implementation-Version'  : project.jar.archiveVersion,

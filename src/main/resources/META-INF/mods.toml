@@ -3,10 +3,18 @@ loaderVersion="[47,)"
 license="MIT"
 
 [[mods]]
-modId="manyideas_core_patch"
-version="1.0.0"
-displayName="Many Ideas Core Server Patch"
-description="Fixes the Dedicated Server crash in Many Ideas Core 1.4.2"
+    modId="manyideas_core_patch"
+    version="1.0.0"
+    displayName="Many Ideas Core Server Patch"
+    authors="FTTristan"
+    description="Fixes the Dedicated Server crash."
+
+[[dependencies.manyideas_core_patch]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
 
 [[dependencies.manyideas_core_patch]]
     modId="manyideas_core"

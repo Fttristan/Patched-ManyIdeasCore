@@ -1,30 +1,71 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+}
+
+version = '1.0.0'
+group = 'de.geheimagentnr1.manyideas_core.patch'
+
+base {
+    archivesName = 'ManyIdeasCore-ServerPatch'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// 1. Define the Dummy source set
 sourceSets {
     dummy {
         java {
             srcDir 'src/dummy/java'
         }
     }
-    // Tell the main code that it can "see" the dummy classes while compiling
     main {
-        compileClasspath += dummy.output
+        // Add the dummy classes to the classpath so 'main' can see them during compile
+        compileClasspath += sourceSets.dummy.output
     }
 }
 
-// Make sure dependencies for dummies are resolved
-configurations {
-    dummyCompileClasspath.extendsFrom(compileClasspath)
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
 }
 
-// THIS IS THE CRITICAL PART:
-// This tells the JAR task to only include your Mixin/Main code
-// and EXCLUDE the dummy classes we created for the API.
+mixin {
+    add sourceSets.main, "manyideas_patch.refmap.json"
+    config "manyideas_patch.mixin.json"
+}
+
+repositories {
+    flatDir {
+        dir 'libs'
+    }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.2.23'
+
+    // The original mod JAR in /libs
+    implementation fg.deobf("blank:ManyIdeasCore-1.20.1:1.4.2")
+
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
 tasks.named('jar', Jar).configure {
-    // Exclude the package that causes the "ResolutionException"
+    // 2. CRITICAL: Exclude the dummy classes from the final JAR 
+    // to prevent "ResolutionException: Modules ... export package ... to module ..."
     exclude 'de/geheimagentnr1/minecraft_forge_api/**'
 
     manifest {
         attributes([
-            "MixinConfigs": "manyideas_patch.mixin.json"
+                'Specification-Title'     : 'manyideas_core_patch',
+                'Specification-Vendor'    : 'patcher',
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'MixinConfigs'            : 'manyideas_patch.mixin.json'
         ])
     }
     finalizedBy 'reobfJar'

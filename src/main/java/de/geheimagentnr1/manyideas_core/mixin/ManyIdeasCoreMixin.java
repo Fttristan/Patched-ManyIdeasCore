@@ -21,10 +21,13 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(value = ManyIdeasCore.class, remap = false)
 public abstract class ManyIdeasCoreMixin extends AbstractMod {
 
+    /**
+     * @author GeheimagentNr1 (Fixed by Patch)
+     * @reason Fixes Dedicated Server crash by wrapping Client-only logic in DistExecutor
+     */
     @Overwrite(remap = false)
     @Override
     protected void initMod() {
-        // Now calling methods inherited from our dummy AbstractMod
         ModBlocksRegisterFactory modBlocksRegisterFactory = registerEventHandler(new ModBlocksRegisterFactory());
         registerEventHandler(new ModArgumentTypesRegisterFactory());
         registerEventHandler(new ModCommandsRegisterFactory());
@@ -37,6 +40,7 @@ public abstract class ManyIdeasCoreMixin extends AbstractMod {
         registerEventHandler(new ModRecipeTypesRegisterFactory());
         registerEventHandler(Network.getInstance());
 
+        // Note: Added 'return null;' inside the suppliers to fix the 'missing return value' error
         DistExecutor.unsafeRunForDist(
             () -> () -> {
                 ClientConfig clientConfig = registerConfig(ClientConfig::new);
@@ -55,9 +59,12 @@ public abstract class ManyIdeasCoreMixin extends AbstractMod {
                 PlayerDecorationManager playerDecorationManager = new PlayerDecorationManager();
                 forgeEventBus().addListener(playerDecorationManager::handlePreRenderPlayerEvent);
                 modEventBus().addListener(playerDecorationManager::handleFMLClientSetupEvent);
+                
+                return null; // Fixed: Innermost supplier must return a value (T)
             },
             () -> () -> {
-                // Server Side: Safe
+                // Server side - do nothing
+                return null; // Fixed: Innermost supplier must return a value (T)
             }
         );
     }

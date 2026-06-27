@@ -14,19 +14,6 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-// 1. Define the Dummy source set
-sourceSets {
-    dummy {
-        java {
-            srcDir 'src/dummy/java'
-        }
-    }
-    main {
-        // Add the dummy classes to the classpath so 'main' can see them during compile
-        compileClasspath += sourceSets.dummy.output
-    }
-}
-
 minecraft {
     mappings channel: 'official', version: '1.20.1'
     copyIdeResources = true
@@ -53,8 +40,9 @@ dependencies {
 }
 
 tasks.named('jar', Jar).configure {
-    // 2. CRITICAL: Exclude the dummy classes from the final JAR 
-    // to prevent "ResolutionException: Modules ... export package ... to module ..."
+    // THIS IS THE MOST IMPORTANT LINE:
+    // It prevents the "ResolutionException" (Split Package) error
+    // by ensuring the dummy API classes are NOT inside your final mod.
     exclude 'de/geheimagentnr1/minecraft_forge_api/**'
 
     manifest {

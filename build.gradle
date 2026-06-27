@@ -37,10 +37,7 @@ dependencies {
 }
 
 tasks.named('jar', Jar).configure {
-    // Explicitly include compiled classes and resources
-    from sourceSets.main.output
-
-    // Prevent the "ResolutionException" by excluding dummy API classes
+    // DO NOT include the dummy API classes in the final JAR
     exclude 'de/geheimagentnr1/minecraft_forge_api/**'
 
     manifest {

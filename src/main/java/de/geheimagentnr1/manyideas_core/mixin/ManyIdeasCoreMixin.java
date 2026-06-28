@@ -1,70 +1,66 @@
 package de.geheimagentnr1.manyideas_core.mixin;
 
 import de.geheimagentnr1.manyideas_core.ManyIdeasCore;
-import de.geheimagentnr1.manyideas_core.config.ClientConfig;
-import de.geheimagentnr1.manyideas_core.elements.blocks.ModBlocksRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.blocks.ModDebugBlocksRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.commands.ModArgumentTypesRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.commands.ModCommandsRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.creative_mod_tabs.ModCreativeModeTabRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.items.ModItemsRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.recipes.ModIngredientSerializersRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeSerializersRegisterFactory;
-import de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeTypesRegisterFactory;
-import de.geheimagentnr1.manyideas_core.network.Network;
-import de.geheimagentnr1.manyideas_core.special.decoration_renderer.PlayerDecorationManager;
-import de.geheimagentnr1.minecraft_forge_api.AbstractMod;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
+import java.lang.reflect.Method;
+
 @Mixin(value = ManyIdeasCore.class, remap = false)
-public abstract class ManyIdeasCoreMixin extends AbstractMod {
+public abstract class ManyIdeasCoreMixin {
 
     /**
-     * @author GeheimagentNr1 (Fixed by FTTristan)
-     * @reason Overwrite initMod to prevent side-loading client classes on Dedicated Servers.
+     * @author FTTristan
+     * @reason Overwrite initMod using pure reflection to bypass private API signature mismatches.
      */
     @Overwrite(remap = false)
-    @Override
     protected void initMod() {
         ManyIdeasCore instance = (ManyIdeasCore) (Object) this;
 
-        // 1. Common Side logic (Safe for Server)
-        ModBlocksRegisterFactory blocksFactory = (ModBlocksRegisterFactory) registerEventHandler(new ModBlocksRegisterFactory());
-        registerEventHandler(new ModArgumentTypesRegisterFactory());
-        registerEventHandler(new ModCommandsRegisterFactory());
-        ModItemsRegisterFactory itemsFactory = (ModItemsRegisterFactory) registerEventHandler(new ModItemsRegisterFactory());
+        try {
+            // Find methods by name ONLY. This bypasses the NoSuchMethodError.
+            Method regEvt = _findMethodByName(instance.getClass(), "registerEventHandler");
+            Method regCfg = _findMethodByName(instance.getClass(), "registerConfig");
+            Method fBus = _findMethodByName(instance.getClass(), "forgeEventBus");
+            Method mBus = _findMethodByName(instance.getClass(), "modEventBus");
 
-        registerEventHandler(new ModIngredientSerializersRegisterFactory(instance));
-        registerEventHandler(new ModRecipeSerializersRegisterFactory());
-        registerEventHandler(new ModRecipeTypesRegisterFactory());
-        registerEventHandler(Network.getInstance());
+            // 1. Common Side logic (Safe for Server)
+            Object blocksFactory = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.blocks.ModBlocksRegisterFactory());
+            regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.commands.ModArgumentTypesRegisterFactory());
+            regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.commands.ModCommandsRegisterFactory());
+            Object itemsFactory = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.items.ModItemsRegisterFactory());
 
-        // 2. Side Isolation
-        if (FMLEnvironment.dist.isClient()) {
-            // Hides client-only class references inside a nested class 
-            // so the server classloader never touches them.
-            ClientInitializer.run(instance, this, blocksFactory, itemsFactory);
-        } else {
-            System.out.println("[ManyIdeas-Patch] Running on Dedicated Server. Client-only registrations skipped.");
+            regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModIngredientSerializersRegisterFactory(instance));
+            regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeSerializersRegisterFactory());
+            regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeTypesRegisterFactory());
+            regEvt.invoke(instance, de.geheimagentnr1.manyideas_core.network.Network.getInstance());
+
+            // 2. Side Isolation
+            if (FMLEnvironment.dist.isClient()) {
+                // Pass everything to a helper class to prevent the server from seeing client classes
+                ClientPatchHelper.initClient(instance, regEvt, regCfg, fBus, mBus, blocksFactory, itemsFactory);
+            } else {
+                System.out.println("[ManyIdeas-Patch] Server detected. Skipping Client registrations.");
+            }
+
+        } catch (Exception e) {
+            System.err.println("[ManyIdeas-Patch] CRITICAL: Reflection failed!");
+            e.printStackTrace();
         }
     }
 
-    private static class ClientInitializer {
-        private static void run(ManyIdeasCore instance, ManyIdeasCoreMixin mixin, ModBlocksRegisterFactory b, ModItemsRegisterFactory i) {
-            // Use a manual lambda to satisfy the compiler's conversion check
-            ClientConfig config = mixin.registerConfig((mod) -> new ClientConfig(instance));
-
-            ModDebugBlocksRegisterFactory debug = (ModDebugBlocksRegisterFactory) mixin.registerEventHandler(
-                new ModDebugBlocksRegisterFactory(config)
-            );
-
-            mixin.registerEventHandler(new ModCreativeModeTabRegisterFactory(config, b, debug, i));
-
-            PlayerDecorationManager deco = new PlayerDecorationManager();
-            ((net.minecraftforge.eventbus.api.IEventBus) mixin.forgeEventBus()).addListener(deco::handlePreRenderPlayerEvent);
-            ((net.minecraftforge.eventbus.api.IEventBus) mixin.modEventBus()).addListener(deco::handleFMLClientSetupEvent);
+    private Method _findMethodByName(Class<?> clazz, String name) throws NoSuchMethodException {
+        Class<?> current = clazz;
+        while (curr != null) {
+            for (Method m : current.getDeclaredMethods()) {
+                if (m.getName().equals(name)) {
+                    m.setAccessible(true);
+                    return m;
+                }
+            }
+            current = current.getSuperclass();
         }
+        throw new NoSuchMethodException(name);
     }
 }

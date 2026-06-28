@@ -14,13 +14,11 @@ import java.util.function.Function;
 
 public class ClientPatchHelper {
     public static void initClient(Object mod, Method regEvt, Method regCfg, Method fBus, Method mBus, Object bFact, Object iFact) throws Exception {
-        // Load Config
+        // Use the proper types for registration
         ClientConfig config = (ClientConfig) regCfg.invoke(mod, (Function<ManyIdeasCore, ClientConfig>) ClientConfig::new);
 
-        // Register Debug Blocks
         Object debugFact = regEvt.invoke(mod, new ModDebugBlocksRegisterFactory(config));
 
-        // Register Creative Tabs
         regEvt.invoke(mod, new ModCreativeModeTabRegisterFactory(
             config, 
             (ModBlocksRegisterFactory)bFact, 
@@ -28,7 +26,6 @@ public class ClientPatchHelper {
             (ModItemsRegisterFactory)iFact
         ));
 
-        // Setup Decoration Manager
         PlayerDecorationManager deco = new PlayerDecorationManager();
         ((IEventBus) fBus.invoke(mod)).addListener(deco::handlePreRenderPlayerEvent);
         ((IEventBus) mBus.invoke(mod)).addListener(deco::handleFMLClientSetupEvent);

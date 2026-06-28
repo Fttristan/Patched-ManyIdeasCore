@@ -12,55 +12,71 @@ public abstract class ManyIdeasCoreMixin {
 
     /**
      * @author FTTristan
-     * @reason Overwrite initMod using pure reflection to bypass private API signature mismatches.
+     * @reason Overwrite initMod with hierarchical reflection to fix registration and server crashes.
      */
     @Overwrite(remap = false)
     protected void initMod() {
         ManyIdeasCore instance = (ManyIdeasCore) (Object) this;
+        System.out.println("[ManyIdeas-Patch] Attempting to patch ManyIdeasCore initialization...");
 
         try {
-            // Find methods by name ONLY. This bypasses the NoSuchMethodError.
-            Method regEvt = _findMethodByName(instance.getClass(), "registerEventHandler");
-            Method regCfg = _findMethodByName(instance.getClass(), "registerConfig");
-            Method fBus = _findMethodByName(instance.getClass(), "forgeEventBus");
-            Method mBus = _findMethodByName(instance.getClass(), "modEventBus");
+            // Hierarchical search for methods (checks ManyIdeasCore AND AbstractMod)
+            Method regEvt = _findMethod(instance.getClass(), "registerEventHandler", Object.class);
+            Method regCfg = _findMethod(instance.getClass(), "registerConfig", java.util.function.Function.class);
+            Method fBus = _findMethod(instance.getClass(), "forgeEventBus", new Class[0]);
+            Method mBus = _findMethod(instance.getClass(), "modEventBus", new Class[0]);
 
-            // 1. Common Side logic (Safe for Server)
-            Object blocksFactory = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.blocks.ModBlocksRegisterFactory());
+            // --- 1. COMMON REGISTRATIONS (Required for Tags to work!) ---
+            System.out.println("[ManyIdeas-Patch] Registering Blocks and Items...");
+            Object blocksFact = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.blocks.ModBlocksRegisterFactory());
             regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.commands.ModArgumentTypesRegisterFactory());
             regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.commands.ModCommandsRegisterFactory());
-            Object itemsFactory = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.items.ModItemsRegisterFactory());
+            Object itemsFact = regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.items.ModItemsRegisterFactory());
 
+            System.out.println("[ManyIdeas-Patch] Registering Recipes and Network...");
             regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModIngredientSerializersRegisterFactory(instance));
             regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeSerializersRegisterFactory());
             regEvt.invoke(instance, new de.geheimagentnr1.manyideas_core.elements.recipes.ModRecipeTypesRegisterFactory());
             regEvt.invoke(instance, de.geheimagentnr1.manyideas_core.network.Network.getInstance());
 
-            // 2. Side Isolation
+            // --- 2. SIDE ISOLATION ---
             if (FMLEnvironment.dist.isClient()) {
-                // Pass everything to a helper class to prevent the server from seeing client classes
-                ClientPatchHelper.initClient(instance, regEvt, regCfg, fBus, mBus, blocksFactory, itemsFactory);
+                System.out.println("[ManyIdeas-Patch] Client detected. Running Client registrations...");
+                ClientPatchHelper.initClient(instance, regEvt, regCfg, fBus, mBus, blocksFact, itemsFact);
             } else {
-                System.out.println("[ManyIdeas-Patch] Server detected. Skipping Client registrations.");
+                System.out.println("[ManyIdeas-Patch] Server detected. Successfully skipped Client registrations.");
             }
 
+            System.out.println("[ManyIdeas-Patch] PATCH APPLIED SUCCESSFULLY. Registry should be intact.");
+
         } catch (Exception e) {
-            System.err.println("[ManyIdeas-Patch] CRITICAL: Reflection failed!");
+            System.err.println("[ManyIdeas-Patch] CRITICAL ERROR: Initialization failed!");
             e.printStackTrace();
+            // If this fails, the server will have missing items/tags!
         }
     }
 
-    private Method _findMethodByName(Class<?> clazz, String name) throws NoSuchMethodException {
+    /**
+     * Finds a method by searching up the class hierarchy.
+     */
+    private Method _findMethod(Class<?> clazz, String name, Class<?>... params) throws NoSuchMethodException {
         Class<?> current = clazz;
-        while (current != null) { // Fixed: 'curr' to 'current'
-            for (Method m : current.getDeclaredMethods()) {
-                if (m.getName().equals(name)) {
-                    m.setAccessible(true);
-                    return m;
+        while (current != null) {
+            try {
+                Method m = current.getDeclaredMethod(name, params);
+                m.setAccessible(true);
+                return m;
+            } catch (NoSuchMethodException e) {
+                // If the parameter signature is slightly different, try name-only match
+                for (Method m : current.getDeclaredMethods()) {
+                    if (m.getName().equals(name)) {
+                        m.setAccessible(true);
+                        return m;
+                    }
                 }
+                current = current.getSuperclass();
             }
-            current = current.getSuperclass();
         }
-        throw new NoSuchMethodException("Could not find API method: " + name);
+        throw new NoSuchMethodException("Could not find method " + name + " in " + clazz.getName());
     }
 }

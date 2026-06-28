@@ -52,7 +52,7 @@ public abstract class ManyIdeasCoreMixin {
 
     private Method _findMethodByName(Class<?> clazz, String name) throws NoSuchMethodException {
         Class<?> current = clazz;
-        while (curr != null) {
+        while (current != null) { // Fixed: 'curr' to 'current'
             for (Method m : current.getDeclaredMethods()) {
                 if (m.getName().equals(name)) {
                     m.setAccessible(true);
@@ -61,6 +61,6 @@ public abstract class ManyIdeasCoreMixin {
             }
             current = current.getSuperclass();
         }
-        throw new NoSuchMethodException(name);
+        throw new NoSuchMethodException("Could not find API method: " + name);
     }
 }

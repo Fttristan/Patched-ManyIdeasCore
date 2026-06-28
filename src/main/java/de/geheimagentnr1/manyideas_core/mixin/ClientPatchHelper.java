@@ -8,17 +8,18 @@ import de.geheimagentnr1.manyideas_core.elements.creative_mod_tabs.ModCreativeMo
 import de.geheimagentnr1.manyideas_core.elements.items.ModItemsRegisterFactory;
 import de.geheimagentnr1.manyideas_core.special.decoration_renderer.PlayerDecorationManager;
 import net.minecraftforge.eventbus.api.IEventBus;
-
 import java.lang.reflect.Method;
 import java.util.function.Function;
 
 public class ClientPatchHelper {
     public static void initClient(Object mod, Method regEvt, Method regCfg, Method fBus, Method mBus, Object bFact, Object iFact) throws Exception {
-        // Use the proper types for registration
+        // Load Client Config
         ClientConfig config = (ClientConfig) regCfg.invoke(mod, (Function<ManyIdeasCore, ClientConfig>) ClientConfig::new);
 
+        // Register Debug Blocks
         Object debugFact = regEvt.invoke(mod, new ModDebugBlocksRegisterFactory(config));
 
+        // Register Creative Tabs
         regEvt.invoke(mod, new ModCreativeModeTabRegisterFactory(
             config, 
             (ModBlocksRegisterFactory)bFact, 
@@ -26,6 +27,7 @@ public class ClientPatchHelper {
             (ModItemsRegisterFactory)iFact
         ));
 
+        // Handle Player Decorations
         PlayerDecorationManager deco = new PlayerDecorationManager();
         ((IEventBus) fBus.invoke(mod)).addListener(deco::handlePreRenderPlayerEvent);
         ((IEventBus) mBus.invoke(mod)).addListener(deco::handleFMLClientSetupEvent);
